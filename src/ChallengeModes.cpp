@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright (C) 2016+ AzerothCore <www.azerothcore.org>, released under GNU AGPL v3 license: https://github.com/azerothcore/azerothcore-wotlk/blob/master/LICENSE-AGPL3
  */
 
@@ -357,7 +357,7 @@ void OnPlayerLevelChanged(Player* player, uint8 /*oldlevel*/) override
         CharTitlesEntry const* titleInfo = sCharTitlesStore.LookupEntry(titleRewardMap->at(level));
         if (!titleInfo)
         {
-            LOG_ERROR("mod-challenge-modes", "Invalid title ID {}!", titleRewardMap->at(level));
+            LOG_ERROR("mod-challenge-modes", "Falsche Titel ID {}!", titleRewardMap->at(level));
             return;
         }
         ChatHandler handler(player->GetSession());
@@ -376,7 +376,7 @@ void OnPlayerLevelChanged(Player* player, uint8 /*oldlevel*/) override
         AchievementEntry const* achievementInfo = sAchievementStore.LookupEntry(achievementRewardMap->at(level));
         if (!achievementInfo)
         {
-            LOG_ERROR("mod-challenge-modes", "Invalid Achievement ID {}!", achievementRewardMap->at(level));
+            LOG_ERROR("mod-challenge-modes", "Falsche Achievement ID {}!", achievementRewardMap->at(level));
             return;
         }
 
@@ -414,7 +414,7 @@ public:
             return;
         }
         player->KillPlayer();
-        player->GetSession()->KickPlayer(std::string("极限模式角色已死亡"));
+        player->GetSession()->KickPlayer("Hardcore Character ist gestorben");
     }
 
     void OnPlayerReleasedGhost(Player* player) override
@@ -424,7 +424,7 @@ public:
             return;
         }
         player->UpdatePlayerSetting("mod-challenge-modes", HARDCORE_DEAD, 1);
-        player->GetSession()->KickPlayer(std::string("极限模式角色已死亡"));
+        player->GetSession()->KickPlayer("Hardcore Character ist gestorben");
     }
 
     void OnPlayerPVPKill(Player* /*killer*/, Player* killed) override
@@ -454,7 +454,7 @@ public:
         // A better implementation is to not allow the resurrect but this will need a new hook added first
         player->UpdatePlayerSetting("mod-challenge-modes", HARDCORE_DEAD, 1);
         player->KillPlayer();
-        player->GetSession()->KickPlayer(std::string("极限模式角色已死亡"));
+        player->GetSession()->KickPlayer("Hardcore Character ist gestorben");
     }
 
     void OnPlayerGiveXP(Player* player, uint32& amount, Unit* victim, uint8 xpSource) override
@@ -476,20 +476,32 @@ public:
     void OnPlayerKilledByCreature(Creature* /*killer*/, Player* player) override
     {
         if (!sChallengeModes->challengeEnabledForPlayer(SETTING_SEMI_HARDCORE, player))
-        {
             return;
-        }
+
         for (uint8 i = 0; i < EQUIPMENT_SLOT_END; ++i)
         {
             if (Item* pItem = player->GetItemByPos(INVENTORY_SLOT_BAG_0, i))
             {
-                if (pItem->GetTemplate() && !pItem->IsEquipped())
+                if (!pItem->IsEquipped())
                     continue;
-                uint8 slot = pItem->GetSlot();
-                ChatHandler(player->GetSession()).PSendSysMessage("|cffDA70D6%s |cffffffff|Hitem:%d:0:0:0:0:0:0:0:0|h[%s]|h|r", "你已失去你的", pItem->GetEntry(), pItem->GetTemplate()->Name1.c_str());
-                player->DestroyItem(INVENTORY_SLOT_BAG_0, slot, true);
+
+                ItemTemplate const* proto = pItem->GetTemplate();
+                if (!proto)
+                    continue;
+
+                std::string itemName = proto->Name1;
+                if (itemName.empty())
+                    itemName = "Unbekannter Gegenstand";
+
+                std::ostringstream msg;
+                msg << "|cffDA70D6Der Gegenstand |cffffffff|Hitem:" << proto->ItemId
+                << ":0:0:0:0:0:0:0:0|h[" << itemName << "]|h|r |cffDA70D6wurde zerstört.|r";
+                ChatHandler(player->GetSession()).SendSysMessage(msg.str().c_str());
+
+                player->DestroyItem(INVENTORY_SLOT_BAG_0, pItem->GetSlot(), true);
             }
         }
+
         player->SetMoney(0);
     }
 
@@ -797,35 +809,35 @@ public:
     {
         if (sChallengeModes->challengeEnabled(SETTING_HARDCORE) && !playerSettingEnabled(player, SETTING_HARDCORE) && !playerSettingEnabled(player, SETTING_SEMI_HARDCORE))
         {
-            AddGossipItemFor(player, GOSSIP_ICON_CHAT, "启用极限模式", 0, SETTING_HARDCORE);
+            AddGossipItemFor(player, GOSSIP_ICON_CHAT, "Hardcore-Modus aktivieren\nNur ein Leben. Tod = Charakterverlust.", 0, SETTING_HARDCORE);
         }
         if (sChallengeModes->challengeEnabled(SETTING_SEMI_HARDCORE) && !playerSettingEnabled(player, SETTING_HARDCORE) && !playerSettingEnabled(player, SETTING_SEMI_HARDCORE))
         {
-            AddGossipItemFor(player, GOSSIP_ICON_CHAT, "启用半极限模式", 0, SETTING_SEMI_HARDCORE);
+            AddGossipItemFor(player, GOSSIP_ICON_CHAT, "Semi-Hardcore-Modus aktivieren\nAusrüstung wird beim Tod zerstört.", 0, SETTING_SEMI_HARDCORE);
         }
         if (sChallengeModes->challengeEnabled(SETTING_SELF_CRAFTED) && !playerSettingEnabled(player, SETTING_SELF_CRAFTED) && !playerSettingEnabled(player, SETTING_IRON_MAN))
         {
-            AddGossipItemFor(player, GOSSIP_ICON_CHAT, "启用自制装备模式", 0, SETTING_SELF_CRAFTED);
+            AddGossipItemFor(player, GOSSIP_ICON_CHAT, "Selbst-gefertigt-Modus aktivieren\nNur selbst hergestellte Ausrüstung erlaubt.", 0, SETTING_SELF_CRAFTED);
         }
         if (sChallengeModes->challengeEnabled(SETTING_ITEM_QUALITY_LEVEL) && !playerSettingEnabled(player, SETTING_ITEM_QUALITY_LEVEL))
         {
-            AddGossipItemFor(player, GOSSIP_ICON_CHAT, "启用低品质装备模式", 0, SETTING_ITEM_QUALITY_LEVEL);
+            AddGossipItemFor(player, GOSSIP_ICON_CHAT, "Gegenstand-minderer-Qualität-Modus aktivieren\nNur weiße oder schlechtere Gegenstände erlaubt.", 0, SETTING_ITEM_QUALITY_LEVEL);
         }
         if (sChallengeModes->challengeEnabled(SETTING_SLOW_XP_GAIN) && !playerSettingEnabled(player, SETTING_SLOW_XP_GAIN) && !playerSettingEnabled(player, SETTING_VERY_SLOW_XP_GAIN))
         {
-            AddGossipItemFor(player, GOSSIP_ICON_CHAT, "启用慢速经验模式", 0, SETTING_SLOW_XP_GAIN);
+            AddGossipItemFor(player, GOSSIP_ICON_CHAT, "Langsamer-XP-Modus aktivieren\nXP-Gewinn stark reduziert.", 0, SETTING_SLOW_XP_GAIN);
         }
         if (sChallengeModes->challengeEnabled(SETTING_VERY_SLOW_XP_GAIN) && !playerSettingEnabled(player, SETTING_SLOW_XP_GAIN) && !playerSettingEnabled(player, SETTING_VERY_SLOW_XP_GAIN))
         {
-            AddGossipItemFor(player, GOSSIP_ICON_CHAT, "启用极慢经验模式", 0, SETTING_VERY_SLOW_XP_GAIN);
+            AddGossipItemFor(player, GOSSIP_ICON_CHAT, "Sehr-langsamer-XP-Modus aktivieren\nXP-Gewinn extrem reduziert.", 0, SETTING_VERY_SLOW_XP_GAIN);
         }
         if (sChallengeModes->challengeEnabled(SETTING_QUEST_XP_ONLY) && !playerSettingEnabled(player, SETTING_QUEST_XP_ONLY))
         {
-            AddGossipItemFor(player, GOSSIP_ICON_CHAT, "启用任务经验专属模式", 0, SETTING_QUEST_XP_ONLY);
+            AddGossipItemFor(player, GOSSIP_ICON_CHAT, "Nur-Quest-XP-Modus aktivieren\nXP nur durch Quests, nicht durch Kills.", 0, SETTING_QUEST_XP_ONLY);
         }
         if (sChallengeModes->challengeEnabled(SETTING_IRON_MAN) && !playerSettingEnabled(player, SETTING_IRON_MAN) && !playerSettingEnabled(player, SETTING_SELF_CRAFTED))
         {
-            AddGossipItemFor(player, GOSSIP_ICON_CHAT, "启用铁人模式", 0, SETTING_IRON_MAN);
+            AddGossipItemFor(player, GOSSIP_ICON_CHAT, "Ironman-Modus aktivieren\nKeine Gruppen, Berufe, Auktionen oder Handel.", 0, SETTING_IRON_MAN);
         }
         SendGossipMenuFor(player, 12669, go->GetGUID());
         return true;
@@ -834,7 +846,7 @@ public:
     bool OnGossipSelect(Player* player, GameObject* /*go*/, uint32 /*sender*/, uint32 action) override
     {
         player->UpdatePlayerSetting("mod-challenge-modes", action, 1);
-        ChatHandler(player->GetSession()).PSendSysMessage("挑战模式已启用。");
+        ChatHandler(player->GetSession()).PSendSysMessage("Herausforderung aktiviert.");
         CloseGossipMenuFor(player);
         return true;
     }
